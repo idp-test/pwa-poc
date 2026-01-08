@@ -1,34 +1,95 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
+import { useState, useEffect } from 'react'
 import './App.css'
 
+interface Todo {
+  id: number
+  text: string
+  completed: boolean
+}
+
+const STORAGE_KEY = 'pwa-todos'
+
 function App() {
-  const [count, setCount] = useState(0)
+  const [todos, setTodos] = useState<Todo[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEY)
+    return saved ? JSON.parse(saved) : []
+  })
+  const [input, setInput] = useState('')
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(todos))
+  }, [todos])
+
+  const addTodo = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!input.trim()) return
+
+    setTodos([
+      ...todos,
+      { id: Date.now(), text: input.trim(), completed: false }
+    ])
+    setInput('')
+  }
+
+  const toggleTodo = (id: number) => {
+    setTodos(todos.map(todo =>
+      todo.id === id ? { ...todo, completed: !todo.completed } : todo
+    ))
+  }
+
+  const deleteTodo = (id: number) => {
+    setTodos(todos.filter(todo => todo.id !== id))
+  }
+
+  const remaining = todos.filter(t => !t.completed).length
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
+    <div className="app">
+      <h1>Todo List</h1>
+
+      <form onSubmit={addTodo} className="todo-form">
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="What needs to be done?"
+          className="todo-input"
+        />
+        <button type="submit" className="add-btn">Add</button>
+      </form>
+
+      <ul className="todo-list">
+        {todos.map(todo => (
+          <li key={todo.id} className={`todo-item ${todo.completed ? 'completed' : ''}`}>
+            <label className="todo-label">
+              <input
+                type="checkbox"
+                checked={todo.completed}
+                onChange={() => toggleTodo(todo.id)}
+              />
+              <span className="todo-text">{todo.text}</span>
+            </label>
+            <button
+              onClick={() => deleteTodo(todo.id)}
+              className="delete-btn"
+              aria-label="Delete todo"
+            >
+              ×
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      {todos.length > 0 && (
+        <p className="todo-count">
+          {remaining} item{remaining !== 1 ? 's' : ''} remaining
         </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
+      )}
+
+      {todos.length === 0 && (
+        <p className="empty-state">No todos yet. Add one above!</p>
+      )}
+    </div>
   )
 }
 
