@@ -66,7 +66,10 @@ jobs:
           SWEOF
 
           # Create index page that also clears service workers
-          cat > deploy/index.html << 'HTMLEOF'
+          BUILD_DATE=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          SHORT_SHA=${GITHUB_SHA::7}
+
+          cat > deploy/index.html << HTMLEOF
           <!DOCTYPE html>
           <html lang="en">
           <head>
@@ -86,7 +89,7 @@ jobs:
               }
               h1 { text-align: center; margin-bottom: 2rem; }
               .apps { display: flex; flex-direction: column; gap: 1rem; }
-              a {
+              a.app-link {
                 display: block;
                 padding: 1.5rem;
                 background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -97,19 +100,31 @@ jobs:
                 font-weight: 600;
                 text-align: center;
               }
+              .build-info {
+                margin-top: 3rem;
+                padding-top: 1rem;
+                border-top: 1px solid #333;
+                font-size: 0.75rem;
+                color: #666;
+                text-align: center;
+              }
+              .build-info a {
+                color: #888;
+                text-decoration: none;
+              }
+              .build-info a:hover {
+                text-decoration: underline;
+              }
             </style>
             <script>
-              // Clear any old service workers on page load
               if ('serviceWorker' in navigator) {
                 navigator.serviceWorker.getRegistrations().then(registrations => {
                   registrations.forEach(reg => {
                     if (reg.scope.endsWith('/pwa-poc/') && !reg.scope.endsWith('/pwa-poc/todo/')) {
                       reg.unregister();
-                      console.log('Unregistered old service worker:', reg.scope);
                     }
                   });
                 });
-                // Register new SW that will clean up caches
                 navigator.serviceWorker.register('./sw.js').catch(() => {});
               }
             </script>
@@ -117,7 +132,11 @@ jobs:
           <body>
             <h1>PWA Apps</h1>
             <div class="apps">
-              <a href="./todo/">Todo List</a>
+              <a class="app-link" href="./todo/">Todo List</a>
+            </div>
+            <div class="build-info">
+              Built: ${BUILD_DATE}<br>
+              Commit: <a href="https://github.com/idp-test/pwa-poc/commit/${GITHUB_SHA}">${SHORT_SHA}</a>
             </div>
           </body>
           </html>
