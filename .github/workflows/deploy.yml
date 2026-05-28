@@ -31,10 +31,78 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
-      - name: Build
+      - name: Build all apps
         run: npm run build
+
+      - name: Combine app outputs
+        run: |
+          mkdir -p dist
+          for app in apps/*/; do
+            app_name=$(basename "$app")
+            if [ -d "$app/dist" ]; then
+              cp -r "$app/dist" "dist/$app_name"
+            fi
+          done
+
+      - name: Generate index page
+        run: |
+          cat > dist/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>PWA Apps</title>
+            <style>
+              * { box-sizing: border-box; }
+              body {
+                font-family: system-ui, -apple-system, sans-serif;
+                max-width: 600px;
+                margin: 2rem auto;
+                padding: 1rem;
+                background: #1a1a2e;
+                color: #eee;
+                min-height: 100vh;
+              }
+              h1 { text-align: center; margin-bottom: 2rem; }
+              .apps { display: flex; flex-direction: column; gap: 1rem; }
+              a {
+                display: block;
+                padding: 1.5rem;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                text-decoration: none;
+                border-radius: 12px;
+                font-size: 1.2rem;
+                font-weight: 600;
+                text-align: center;
+                transition: transform 0.2s, box-shadow 0.2s;
+              }
+              a:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+              }
+            </style>
+          </head>
+          <body>
+            <h1>PWA Apps</h1>
+            <div class="apps">
+          EOF
+
+          for app in apps/*/; do
+            app_name=$(basename "$app")
+            if [ -d "$app/dist" ]; then
+              echo "      <a href=\"./$app_name/\">$app_name</a>" >> dist/index.html
+            fi
+          done
+
+          cat >> dist/index.html << 'EOF'
+            </div>
+          </body>
+          </html>
+          EOF
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
