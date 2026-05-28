@@ -38,25 +38,34 @@ jobs:
 
       - name: Prepare deployment directory
         run: |
-          # Start fresh
           rm -rf deploy
           mkdir deploy
 
-          # Copy each app's dist to deploy/{app-name}
           for app_dir in apps/*/; do
             app_name=$(basename "$app_dir")
             if [ -d "${app_dir}dist" ]; then
-              echo "=== Copying $app_name ==="
+              echo "Copying $app_name..."
               mkdir -p "deploy/$app_name"
               cp -r "${app_dir}dist/"* "deploy/$app_name/"
-              echo "Files in deploy/$app_name:"
-              ls -la "deploy/$app_name/"
             fi
           done
 
-      - name: Generate root index page
+      - name: Generate root index and service worker killer
         run: |
-          # Create the index page listing all apps
+          # Create a service worker that unregisters old service workers
+          cat > deploy/sw.js << 'SWEOF'
+          // This service worker unregisters itself and clears old caches
+          self.addEventListener('install', () => self.skipWaiting());
+          self.addEventListener('activate', async () => {
+            const keys = await caches.keys();
+            await Promise.all(keys.map(key => caches.delete(key)));
+            const clients = await self.clients.matchAll({ type: 'window' });
+            clients.forEach(client => client.navigate(client.url));
+            self.registration.unregister();
+          });
+          SWEOF
+
+          # Create index page that also clears service workers
           cat > deploy/index.html << 'HTMLEOF'
           <!DOCTYPE html>
           <html lang="en">
@@ -89,6 +98,21 @@ jobs:
                 text-align: center;
               }
             </style>
+            <script>
+              // Clear any old service workers on page load
+              if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(registrations => {
+                  registrations.forEach(reg => {
+                    if (reg.scope.endsWith('/pwa-poc/') && !reg.scope.endsWith('/pwa-poc/todo/')) {
+                      reg.unregister();
+                      console.log('Unregistered old service worker:', reg.scope);
+                    }
+                  });
+                });
+                // Register new SW that will clean up caches
+                navigator.serviceWorker.register('./sw.js').catch(() => {});
+              }
+            </script>
           </head>
           <body>
             <h1>PWA Apps</h1>
@@ -99,13 +123,14 @@ jobs:
           </html>
           HTMLEOF
 
-          echo "=== Root index.html content ==="
-          cat deploy/index.html
-          echo ""
-          echo "=== Final deploy structure ==="
-          ls -la deploy/
-          echo "=== Verify index.html exists ==="
-          file deploy/index.html
+          # Verification file
+          echo "Deployed: $(date -u)" > deploy/_deployed.txt
+          echo "Commit: $GITHUB_SHA" >> deploy/_deployed.txt
+
+          echo "=== Deploy contents ==="
+          find deploy -type f
+          echo "=== index.html ==="
+          head -20 deploy/index.html
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
